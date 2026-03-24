@@ -16,14 +16,14 @@ int main(int argc, char *argv[]) {
     int port = atoi(argv[1]);
     char *logfile = argv[2];
 
-    int server_fd, client_fd;
+    int server, client;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
 
     char buffer[BUFFER_SIZE];
 
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0) {
+    server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server < 0) {
         perror("socket loi");
         return 1;
     }
@@ -32,13 +32,13 @@ int main(int argc, char *argv[]) {
     server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (bind(server, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("bind loi");
         return 1;
     }
 
     // Listen
-    if (listen(server_fd, 5) < 0) {
+    if (listen(server, 5) < 0) {
         perror("listen loi");
         return 1;
     }
@@ -47,16 +47,16 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         // Chờ client
-        client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
-        if (client_fd < 0) {
+        client = accept(server, (struct sockaddr*)&client_addr, &addr_len);
+        if (client < 0) {
             perror("accept loi");
             continue;
         }
 
-        int bytes = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+        int bytes = recv(client, buffer, BUFFER_SIZE - 1, 0);
 
         if (bytes <= 0) {
-            close(client_fd);
+            close(client);
             continue;
         }
 
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
         FILE *fp = fopen(logfile, "a");
         if (fp == NULL) {
             perror("fopen loi");
-            close(client_fd);
+            close(client);
             continue;
         }
 
@@ -81,9 +81,9 @@ int main(int argc, char *argv[]) {
 
         printf("%s %s %s\n", ip, time_str, buffer);
 
-        close(client_fd);
+        close(client);
     }
 
-    close(server_fd);
+    close(server);
     return 0;
 }
