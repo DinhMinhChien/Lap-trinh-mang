@@ -13,7 +13,7 @@
 typedef struct {
     int fd;
     int is_logged_in;
-    char username[50]; // Thêm để biết ai vừa thoát
+    char username[50]; 
 } Client;
 
 void clean_string(char *str) {
@@ -85,15 +85,14 @@ int main() {
                 char buf[BUFFER_SIZE] = {0};
                 int n = recv(fd, buf, sizeof(buf) - 1, 0);
 
-                // TRƯỜNG HỢP CLIENT NGẮT KẾT NỐI
                 if (n <= 0) { 
                     if (clients[i].is_logged_in) {
                         printf("Server: Client '%s' (FD: %d) đã thoát.\n", clients[i].username, fd);
                     } else {
                         printf("Server: Một client chưa đăng nhập (FD: %d) đã thoát.\n", fd);
                     }
-                    close(fd);       // Đóng socket
-                    clients[i].fd = 0; // Giải phóng slot trong mảng
+                    close(fd);  
+                    clients[i].fd = 0; 
                     clients[i].is_logged_in = 0;
                     continue;
                 }
@@ -104,7 +103,7 @@ int main() {
                     char u[50], p[50];
                     if (sscanf(buf, "%s %s", u, p) == 2 && check_auth(u, p)) {
                         clients[i].is_logged_in = 1;
-                        strcpy(clients[i].username, u); // Lưu tên lại để dùng khi thoát
+                        strcpy(clients[i].username, u);
                         char *success_msg = "Đăng nhập thành công. Nhập lệnh\n";
                         send(fd, success_msg, strlen(success_msg), 0);
                         printf("Server: Client '%s' đã đăng nhập thành công.\n", u);
