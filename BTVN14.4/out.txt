@@ -1,0 +1,16 @@
+
+--- Command: dir ---
+chat_server    database.txt  telnet_server    tmp_4.txt
+chat_server.c  out.txt	     telnet_server.c
+
+--- Command: ls ---
+chat_server
+chat_server.c
+database.txt
+out.txt
+telnet_server
+telnet_server.c
+tmp_4.txt
+
+--- Command: pwd ---
+/mnt/c/Users/Chien/Documents/Tài liệu học - 2025.2/Lập trình mạng - IT4060/Code_Lap_trinh_mang/Bai_tap_ve_nha/BTVN14.4
