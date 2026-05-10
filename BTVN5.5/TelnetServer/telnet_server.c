@@ -4,97 +4,136 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <sys/wait.h>
 #include <signal.h>
 
-#define PORT 8888
+#define PORT 8777
 #define DB_FILE "database.txt"
 
-int check_login(char *user, char *pass) {
+int check_login(char *input_user, char *input_pass) {
     FILE *f = fopen(DB_FILE, "r");
-    if (f == NULL) return 0;
+    if (f == NULL) {
+        perror("Khong mo duoc file database");
+        return 0;
+    }
 
     char f_user[50], f_pass[50];
     while (fscanf(f, "%s %s", f_user, f_pass) != EOF) {
-        if (strcmp(user, f_user) == 0 && strcmp(pass, f_pass) == 0) {
+        if (strcmp(input_user, f_user) == 0 && strcmp(input_pass, f_pass) == 0) {
             fclose(f);
-            return 1;
+            return 1; 
         }
     }
     fclose(f);
-    return 0;
+    return 0; 
 }
 
 void handle_client(int client_sock) {
-    char buf[1024], user[50], pass[50], cmd[1024], sys_cmd[1100];
-    
-    send(client_sock, "Username: ", 10, 0);
-    int len = recv(client_sock, buf, sizeof(buf) - 1, 0);
-    buf[len] = '\0'; sscanf(buf, "%s", user);
+    char buf[1024], user[50], pass[50], tmp[1100];
+    int authenticated = 0;
 
-    send(client_sock, "Password: ", 10, 0);
-    len = recv(client_sock, buf, sizeof(buf) - 1, 0);
-    buf[len] = '\0'; sscanf(buf, "%s", pass);
-
-    if (!check_login(user, pass)) {
-        send(client_sock, "Login failed. Bye!\n", 19, 0);
-        close(client_sock);
-        exit(0);
+    while (!authenticated) {
+        send(client_sock, "Nhap user pass (vi du: admin admin): ", 37, 0);
+        
+        int len = recv(client_sock, buf, sizeof(buf) - 1, 0);
+        if (len <= 0) { close(client_sock); exit(0); }
+        
+        buf[len] = '\0';
+        
+        if (sscanf(buf, "%s %s", user, pass) == 2) {
+            if (check_login(user, pass)) {
+                send(client_sock, "Dang nhap thanh cong!\n", 22, 0);
+                authenticated = 1;
+            } else {
+                send(client_sock, "Sai tai khoan hoac mat khau. Thu lai!\n", 38, 0);
+            }
+        } else {
+            send(client_sock, "Sai cu phap! Vui long nhap theo dang: [user] [pass]\n", 52, 0);
+        }
     }
-
-    send(client_sock, "Login success! Enter commands:\n", 31, 0);
 
     while (1) {
         send(client_sock, "$ ", 2, 0);
-        len = recv(client_sock, buf, sizeof(buf) - 1, 0);
+        int len = recv(client_sock, buf, sizeof(buf) - 1, 0);
         if (len <= 0) break;
 
         buf[len] = '\0';
-        if (buf[len-1] == '\n') buf[len-1] = '\0';
-        if (buf[len-2] == '\r') buf[len-2] = '\0';
+        strtok(buf, "\r\n");
 
-        if (strlen(buf) <= 0) continue;
+        if (strlen(buf) == 0) continue;
+        if (strcmp(buf, "exit") == 0) break;
 
-        sprintf(sys_cmd, "%s > out.txt 2>&1", buf);
-        system(sys_cmd);
+        sprintf(tmp, "%s > out.txt 2>&1", buf);
+        system(tmp);
+
         FILE *fout = fopen("out.txt", "r");
         if (fout) {
-            while (fgets(cmd, sizeof(cmd), fout) != NULL) {
-                send(client_sock, cmd, strlen(cmd), 0);
+            while (fgets(tmp, sizeof(tmp), fout) != NULL) {
+                send(client_sock, tmp, strlen(tmp), 0);
             }
             fclose(fout);
         }
     }
 
+    printf("Client ngat ket noi.\n");
     close(client_sock);
-    exit(0); 
+    exit(0);
 }
 
 int main() {
-    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    int listener = socket(AF_INET, SOCK_STREAM, 0);
+    if (listener < 0) {
+        perror("Khong tao duoc socket");
+        return 1;
+    }
+
+    int optval = 1;
+    if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        perror("Khong cau hinh SO_REUSEADDR");
+        close(listener);
+        return 1;
+    }
+
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(PORT);
 
-    bind(server_sock, (struct sockaddr *)&addr, sizeof(addr));
-    listen(server_sock, 5);
-
-    printf("Server telnet dang chay tai port %d...\n", PORT);
-
-    signal(SIGCHLD, SIG_IGN);
-
-    while (1) {
-        int client_sock = accept(server_sock, NULL, NULL);
-        printf("Co ket noi moi!\n");
-
-        if (fork() == 0) {
-            close(server_sock); 
-            handle_client(client_sock);
-        } else {
-            close(client_sock); 
-        }
+    if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("Bind that bai");
+        close(listener);
+        return 1;
     }
 
+    if (listen(listener, 10) < 0) {
+        perror("Listen that bai");
+        close(listener);
+        return 1;
+    }
+    
+    signal(SIGCHLD, SIG_IGN);
+    printf("Server dang doi tai port %d...\n", PORT);
+
+    while (1) {
+        int client = accept(listener, NULL, NULL);
+        if (client < 0) {
+            perror("Accept that bai");
+            continue;
+        }
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("Fork that bai");
+            close(client);
+            continue;
+        }
+
+        if (pid == 0) {
+            close(listener);
+            handle_client(client);
+        } else {
+            close(client);
+        }
+    }
     return 0;
 }
